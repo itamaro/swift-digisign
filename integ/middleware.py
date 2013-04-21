@@ -1,6 +1,7 @@
 from webob import Response, Request
-from swift.common.swob import Request as SwobReq
-from swift.common.utils import get_logger
+import cPickle
+from Crypto.Hash import SHA
+from Crypto import Random
 
 class SwiftIntegrityMiddleware(object):
     """Middleware doing virus scan for Swift."""
@@ -8,24 +9,26 @@ class SwiftIntegrityMiddleware(object):
     def __init__(self, app, conf):
         # app is the final application
         self.app = app
-        self.logger = get_logger(conf, log_route='proxy-server')
+        with open(conf.get('dsa_key_file'), 'rb') as f:
+            self.dsa_key = cPickle.load(f)
+
 
     def __call__(self, env, start_response):
-        swobreq = SwobReq(env)
         req = Request(env)
-        #req.headers['x-object-meta-foo'] = 'bar'
-        print "weeeeeeeeee-18-04--1"
-        #print repr(env)
-        if env['REQUEST_METHOD'] == 'PUT':
-            #print 'type(env)', type(env)
-            #print 'type(req)', type(req)
-            #print 'type(req-method)', type(env['REQUEST_METHOD'])
-            #print 'read env(wsgi.input)', env['wsgi.input'].read()
-            print 'req.method', req.method
-            print 'req.body', req.body
-            swobreq.headers['x-object-meta-foobar'] = 'barfoo'
-            #swobreq.headers['x-object-meta-content'] = env['wsgi.input'].read()
-        #    env['X-Object-Meta-Foo'] = 'bar'
+        print "weeeeeeeeee-21-04--3"
+        if req.method == 'PUT':
+            # Calculate SHA1 digest of content body (160bit)
+            hash = SHA.new(req.body).digest()
+            # Calculate DSA signature using loaded keys
+            sig = self.dsa_key.sign(hash, Random.new().read(19))
+            # Store signature (as string) in object metadata
+            req.headers['x-object-meta-dsa-signature'] = str(sig)
+        if req.method == 'GET':
+            # Obtain DSA signature from metadata, if it exists, and verify the content of the object
+            if 'x-object-meta-dsa-signature' in req.headers:
+                sig_str = req.headers['x-object-meta-dsa-signature']
+                sig = tuple(map(long, sig_str[1:-1].split(', ')))
+                #self.dsa_key.verify(
         return self.app(env, start_response)
 
 
@@ -36,3 +39,4 @@ def filter_factory(global_conf, **local_conf):
     def integrity_filter(app):
         return SwiftIntegrityMiddleware(app, conf)
     return integrity_filter
+
