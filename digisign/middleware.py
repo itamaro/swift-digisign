@@ -8,11 +8,10 @@ from swift.common.wsgi import make_pre_authed_env, make_pre_authed_request
 g_SigMeta = 'X-Object-Meta-DSA-Signature'
 g_SigUserMeta = 'X-Object-Meta-Sig-User'
 
-class SwiftIntegrityMiddleware(object):
-    """Middleware doing digital signature calculation and verification for Swift."""
+class SwiftDigisignMiddleware(object):
+    """Middleware doing digital signature calculation and verification for Swift objects."""
 
     def __init__(self, app, conf):
-        # app is the final application
         self.app = app
         with open(conf.get('keys_file'), 'rb') as f:
             self.keys_dict = cPickle.load(f)
@@ -30,7 +29,6 @@ class SwiftIntegrityMiddleware(object):
             # Not handling requests that don't touch objects
             return self.app(env, start_response)
         tenant = req.remote_user.split(',')[1]
-        print "weeeeeeeeee-28-04--3 (%s)" % (req.path)
         if req.method == 'PUT':
             # Calculate SHA1 digest of content body (160bit)
             hash = SHA.new(req.body).digest()
@@ -67,7 +65,7 @@ def filter_factory(global_conf, **local_conf):
     conf = global_conf.copy()
     conf.update(local_conf)
 
-    def integrity_filter(app):
-        return SwiftIntegrityMiddleware(app, conf)
-    return integrity_filter
+    def digisign_filter(app):
+        return SwiftDigisignMiddleware(app, conf)
+    return digisign_filter
 

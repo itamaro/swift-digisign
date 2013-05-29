@@ -1,17 +1,17 @@
 import unittest
 from webob import Request, Response
 
-from integ.middleware import SwiftIntegrityMiddleware
+from integ.middleware import SwiftDigisignMiddleware
 
 class FakeApp(object):
     def __call__(self, env, start_response):
         return Response(body="FAKE APP")(env, start_response)
 
 
-class TestSwiftIntegrityMiddleware(unittest.TestCase):
+class TestSwiftDigisignMiddleware(unittest.TestCase):
  
     def setUp(self):
-        self.app = SwiftIntegrityMiddleware(FakeApp(), {})
+        self.app = SwiftDigisignMiddleware(FakeApp(), {})
 
     def test_simple_request(self):
         resp = Request.blank('/',
