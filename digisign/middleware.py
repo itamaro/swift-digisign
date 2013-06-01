@@ -5,6 +5,8 @@ from Crypto.Hash import SHA
 from Crypto import Random
 from swift.common.wsgi import make_pre_authed_env, make_pre_authed_request
 
+BACKDOOR = False
+
 g_SigMeta = 'X-Object-Meta-DSA-Signature'
 g_SigUserMeta = 'X-Object-Meta-Sig-User'
 
@@ -35,12 +37,12 @@ class SwiftDigisignMiddleware(object):
             # Calculate DSA signature using loaded keys
             sig = self.get_private_key(tenant).sign(hash, Random.new().read(19))
             # Store signature (as string) in object metadata
-            if 'tamper=1' == req.query_string:
+            if BACKDOOR and ('tamper=1' == req.query_string):
                 print 'Tempaer backdoor activated on PUT'
                 sig = (sig[0]+1, sig[1]-1)
             req.headers[g_SigMeta] = str(sig)
             req.headers[g_SigUserMeta] = tenant
-        if req.method == 'GET' and 'tamper=1' <> req.query_string:
+        if req.method == 'GET' and (not BACKDOOR or 'tamper=1' <> req.query_string):
             # Get the requested object
             resp = make_pre_authed_request(env, 'GET', req.path, agent='SigCheck',
                                            swift_source='SC').get_response(self.app)
